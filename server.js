@@ -220,6 +220,92 @@ app.get('/contatos/:id', async (req, res) => {
   }
 });
 
+app.put("/contatos/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    // Aceita tanto numeroConta quanto numero_conta enviado pelo cliente
+    const { nome, numeroConta, numero_conta } = req.body;
+    const contaFinal = numeroConta || numero_conta;
+
+    if (!nome || nome.trim() === "") {
+      return res.status(400).json({
+        erro: "Nome é obrigatório",
+      });
+    }
+
+    if (!contaFinal || contaFinal <= 0) {
+      return res.status(400).json({
+        erro: "numeroConta deve ser maior que zero",
+      });
+    }
+
+    const resultado = await pool.query(
+      `update contatos
+       set nome = $1,
+           numero_conta = $2
+       where id = $3
+       returning id, nome, numero_conta`,
+      [nome, contaFinal, id]
+    );
+
+    if (resultado.rows.length === 0) {
+      return res.status(404).json({
+        erro: "Contato não encontrado",
+      });
+    }
+
+    res.json({
+      mensagem: "Contato atualizado com sucesso",
+      contato: {
+        id: resultado.rows[0].id,
+        nome: resultado.rows[0].nome,
+        numeroConta: resultado.rows[0].numero_conta // padroniza o retorno
+      },
+    });
+  } catch (erro) {
+    console.error("Erro ao atualizar contato:", erro);
+    res.status(500).json({
+      erro: "Erro interno do servidor",
+    });
+  }
+});
+
+app.delete("/contatos/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // O 'returning *' traz os dados do registro que foi apagado
+    const resultado = await pool.query(
+      `delete from contatos
+       where id = $1
+       returning id, nome, numero_conta`,
+      [id]
+    );
+
+    // Se nenhuma linha foi afetada, o ID não existia no banco
+    if (resultado.rows.length === 0) {
+      return res.status(404).json({
+        erro: "Contato não encontrado",
+      });
+    }
+
+    res.json({
+      mensagem: "Contato removido com sucesso",
+      contatoDeletado: {
+        id: resultado.rows[0].id,
+        nome: resultado.rows[0].nome,
+        numeroConta: resultado.rows[0].numero_conta
+      }
+    });
+  } catch (erro) {
+    console.error("Erro ao remover contato:", erro);
+
+    res.status(500).json({
+      erro: "Erro interno do servidor",
+    });
+  }
+});
+
 app.listen(porta, () => {
   console.log(`Servidor rodando na porta ${porta} ...`);
 });
